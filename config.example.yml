@@ -1,3 +1,6 @@
+bluesky:
+  handle: bsky.app
+
 extract:
   car_path: repo.car
   out_dir: out
