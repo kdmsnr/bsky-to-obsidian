@@ -1,0 +1,10 @@
+extract:
+  car_path: repo.car
+  out_dir: out
+
+obsidian:
+  vault_path: sample-obsidian
+  timezone: Asia/Tokyo
+
+  daily:
+    path_format: "Daily/%Y/%Y-%m-%d.md"
