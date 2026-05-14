@@ -44,13 +44,20 @@ def parse_options
 end
 
 def get_json(uri)
-  response = Net::HTTP.get_response(uri)
+  response = http_get(uri)
 
   unless response.is_a?(Net::HTTPSuccess)
     raise "GET #{uri} failed: #{response.code} #{response.message}"
   end
 
   JSON.parse(response.body)
+end
+
+def http_get(uri)
+  Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https") do |http|
+    request = Net::HTTP::Get.new(uri)
+    http.request(request)
+  end
 end
 
 def resolve_handle(handle)
@@ -65,11 +72,46 @@ def resolve_handle(handle)
   did
 end
 
-def download_repo(did, path)
-  uri = URI("https://bsky.social/xrpc/com.atproto.sync.getRepo")
+def did_document_uri(did)
+  case did
+  when /\Adid:plc:[A-Za-z0-9]+\z/
+    URI("https://plc.directory/#{did}")
+  when /\Adid:web:/
+    encoded_host = did.delete_prefix("did:web:")
+
+    raise "path-based did:web is not supported: #{did}" if encoded_host.include?(":")
+
+    host = URI.decode_www_form_component(encoded_host)
+    raise "invalid did:web host: #{did}" if host.empty? || host.include?("/")
+
+    scheme = host.start_with?("localhost") ? "http" : "https"
+
+    URI("#{scheme}://#{host}/.well-known/did.json")
+  else
+    raise "unsupported DID method: #{did}"
+  end
+end
+
+def resolve_pds_endpoint(did)
+  uri = did_document_uri(did)
+  body = get_json(uri)
+
+  service = Array(body["service"]).find do |entry|
+    entry["type"] == "AtprotoPersonalDataServer" && entry["id"].to_s.end_with?("#atproto_pds")
+  end
+
+  endpoint = service && service["serviceEndpoint"]
+
+  raise "failed to resolve PDS endpoint for #{did}" if endpoint.nil? || endpoint.empty?
+
+  endpoint
+end
+
+def download_repo(pds_endpoint, did, path)
+  uri = URI("#{pds_endpoint}/xrpc/com.atproto.sync.getRepo")
   uri.query = URI.encode_www_form("did" => did)
 
-  response = Net::HTTP.get_response(uri)
+  response = http_get(uri)
 
   unless response.is_a?(Net::HTTPSuccess)
     raise "GET #{uri} failed: #{response.code} #{response.message}"
@@ -82,9 +124,12 @@ def main
   options = parse_options
 
   did = resolve_handle(options.handle)
-  puts "resolved #{options.handle}: #{did}"
+  pds_endpoint = resolve_pds_endpoint(did)
 
-  download_repo(did, options.car_path)
+  puts "resolved #{options.handle}: #{did}"
+  puts "resolved PDS: #{pds_endpoint}"
+
+  download_repo(pds_endpoint, did, options.car_path)
   puts "wrote #{options.car_path}"
 end
 
