@@ -1,1 +1,5 @@
+.DS_Store
 repo.car
+config.yml
+out/
+sample-obsidian/

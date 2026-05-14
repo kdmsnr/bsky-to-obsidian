@@ -8,6 +8,8 @@ require "fileutils"
 require "time"
 require_relative "lib/config"
 
+TARGET_COLLECTION = "app.bsky.feed.post"
+
 Options = Struct.new(
   :config_path,
   :car_path,
@@ -17,13 +19,13 @@ Options = Struct.new(
 
 def parse_options
   options = Options.new(
-    config_path: "config.yml"
+    config_path: DEFAULT_CONFIG_PATH
   )
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: ruby extract_car.rb [--config config.yml]"
+    opts.banner = "Usage: ruby extract_car.rb [--config #{DEFAULT_CONFIG_PATH}]"
 
-    opts.on("--config PATH", "Config file, default: config.yml") do |v|
+    opts.on("--config PATH", "Config file, default: #{DEFAULT_CONFIG_PATH}") do |v|
       options.config_path = v
     end
   end
@@ -253,6 +255,23 @@ def split_record_path(path)
   [collection, rkey]
 end
 
+def did_from_at_uri(uri)
+  uri.to_s[%r{\Aat://([^/]+)/}, 1]
+end
+
+def own_reply?(record, repo_did)
+  reply = record["reply"]
+  return false unless reply && repo_did
+
+  ["root", "parent"].any? do |key|
+    did_from_at_uri(reply.dig(key, "uri")) == repo_did
+  end
+end
+
+def reply_to_other_user?(record, repo_did)
+  record["reply"] && !own_reply?(record, repo_did)
+end
+
 def safe_path_component(str)
   str.gsub(%r{[^A-Za-z0-9._:-]}, "_")
 end
@@ -289,6 +308,7 @@ def extract_records(options)
 
   commit_cid = roots_from_header(header).first
   commit = decode_block(blocks, commit_cid)
+  repo_did = hash_get(commit, "did")
   mst_root_cid = repo_root_from_commit(commit)
 
   record_cids_by_path = traverse_mst(blocks, mst_root_cid)
@@ -297,12 +317,15 @@ def extract_records(options)
 
   record_cids_by_path.keys.sort.each do |path|
     collection, rkey = split_record_path(path)
+    next unless collection == TARGET_COLLECTION
 
     record_cid = record_cids_by_path.fetch(path)
     record = decode_block(blocks, record_cid)
     normalized_record = normalize_for_json(record)
+    next if reply_to_other_user?(normalized_record, repo_did)
 
     item = {
+      "repo_did" => repo_did,
       "path" => path,
       "collection" => collection,
       "rkey" => rkey,

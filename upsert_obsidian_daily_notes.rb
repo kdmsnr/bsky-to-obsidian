@@ -8,9 +8,7 @@ require "optparse"
 require "fileutils"
 
 require_relative "lib/config"
-
-START_MARKER = "<!-- bsky-to-obsidian:start -->"
-END_MARKER = "<!-- bsky-to-obsidian:end -->"
+require_relative "lib/obsidian_block"
 
 Post = Struct.new(
   :path,
@@ -26,19 +24,19 @@ Options = Struct.new(
   :vault_path,
   :timezone,
   :daily_path_format,
-  :create_if_missing,
+  :exclude_texts,
   keyword_init: true
 )
 
 def parse_options
   options = Options.new(
-    config_path: "config.yml"
+    config_path: DEFAULT_CONFIG_PATH
   )
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: ruby insert_obsidian.rb [--config config.yml]"
+    opts.banner = "Usage: ruby upsert_obsidian_daily_notes.rb [--config #{DEFAULT_CONFIG_PATH}]"
 
-    opts.on("--config PATH", "Config file, default: config.yml") do |v|
+    opts.on("--config PATH", "Config file, default: #{DEFAULT_CONFIG_PATH}") do |v|
       options.config_path = v
     end
   end
@@ -70,12 +68,8 @@ def parse_options
     default: "Daily/%Y-%m-%d.md"
   )
 
-  options.create_if_missing = config_get(
-    config,
-    "obsidian",
-    "daily",
-    "create_if_missing",
-    default: true
+  options.exclude_texts = string_list_config(
+    config_get(config, "obsidian", "posts", "exclude_texts", default: [])
   )
 
   unless options.vault_path && !options.vault_path.empty?
@@ -90,6 +84,17 @@ def parse_options
   end
 
   options
+end
+
+def string_list_config(value)
+  case value
+  when nil
+    []
+  when Array
+    value.map { |item| item.to_s.strip }.reject(&:empty?)
+  else
+    [value.to_s.strip].reject(&:empty?)
+  end
 end
 
 def with_timezone(timezone)
@@ -115,7 +120,72 @@ def daily_note_path(vault_path, path_format, date)
   File.join(vault_path, relative_path)
 end
 
-def read_posts(path)
+def did_from_at_uri(uri)
+  uri.to_s[%r{\Aat://([^/]+)/}, 1]
+end
+
+def own_reply?(record, repo_did)
+  reply = record["reply"]
+  return false unless reply && repo_did
+
+  ["root", "parent"].any? do |key|
+    did_from_at_uri(reply.dig(key, "uri")) == repo_did
+  end
+end
+
+def reply_to_other_user?(record, repo_did)
+  record["reply"] && repo_did && !own_reply?(record, repo_did)
+end
+
+def link_uri_from_facet(facet)
+  features = facet["features"]
+  return nil unless features.is_a?(Array)
+
+  link = features.find { |feature| feature["$type"] == "app.bsky.richtext.facet#link" }
+  link && link["uri"].to_s
+end
+
+def expand_faceted_links(text, facets)
+  return text unless facets.is_a?(Array) && !facets.empty?
+
+  replacements = facets.filter_map do |facet|
+    index = facet["index"]
+    next unless index.is_a?(Hash)
+
+    uri = link_uri_from_facet(facet)
+    next if uri.nil? || uri.empty?
+
+    byte_start = index["byteStart"]
+    byte_end = index["byteEnd"]
+    next unless byte_start.is_a?(Integer) && byte_end.is_a?(Integer)
+    next unless byte_start >= 0 && byte_end > byte_start && byte_end <= text.bytesize
+
+    [byte_start, byte_end, uri]
+  end
+
+  return text if replacements.empty?
+
+  bytes = text.b
+  cursor = 0
+  expanded = +""
+
+  replacements.sort_by(&:first).each do |byte_start, byte_end, uri|
+    next if byte_start < cursor
+
+    expanded << bytes.byteslice(cursor...byte_start).force_encoding(Encoding::UTF_8)
+    expanded << uri
+    cursor = byte_end
+  end
+
+  expanded << bytes.byteslice(cursor..).to_s.force_encoding(Encoding::UTF_8)
+  expanded
+end
+
+def excluded_post_text?(text, exclude_texts)
+  exclude_texts.any? { |exclude_text| text.include?(exclude_text) }
+end
+
+def read_posts(path, exclude_texts)
   posts = []
 
   File.foreach(path, encoding: "UTF-8") do |line|
@@ -124,18 +194,19 @@ def read_posts(path)
 
     item = JSON.parse(line)
 
-    collection = item["collection"]
-    next unless collection.nil? || collection == "app.bsky.feed.post"
+    next unless item["collection"] == "app.bsky.feed.post"
 
     record = item.fetch("record")
 
     type = record["$type"]
-    next unless type.nil? || type == "app.bsky.feed.post"
+    next unless type == "app.bsky.feed.post"
+    next if reply_to_other_user?(record, item["repo_did"])
 
-    text = record["text"].to_s
+    text = expand_faceted_links(record["text"].to_s, record["facets"])
     created_at = record["createdAt"]
 
     next if created_at.nil? || created_at.empty?
+    next if excluded_post_text?(text, exclude_texts)
 
     posts << Post.new(
       path: item["path"],
@@ -150,11 +221,11 @@ def read_posts(path)
     .sort_by(&:created_at)
 end
 
-def escape_markdown_text(text)
+def normalize_post_text(text)
   text
     .gsub("\r\n", "\n")
     .gsub("\r", "\n")
-    .gsub("\n", "<br>")
+    .rstrip
 end
 
 def render_posts_body(posts, timezone)
@@ -164,52 +235,20 @@ def render_posts_body(posts, timezone)
 
   posts.sort_by(&:created_at).each do |post|
     time = local_time(post.created_at, timezone).strftime("%H:%M")
-    text = escape_markdown_text(post.text)
+    text = normalize_post_text(post.text)
 
-    lines << "- #{time} #{text}"
-
-    if post.path && !post.path.empty?
-      lines << "  - path: #{post.path}"
-    end
+    lines << [time, text].join("\n")
   end
 
-  lines.join("\n")
+  lines.join("\n\n")
 end
 
-def replace_or_append_block(note, body)
-  start_index = note.index(START_MARKER)
-  end_index = note.index(END_MARKER)
-
-  if start_index && end_index && end_index > start_index
-    body_start = start_index + START_MARKER.length
-
-    before = note[0...body_start].rstrip
-    after = note[end_index..].to_s.lstrip
-
-    [
-      before,
-      body.rstrip,
-      after
-    ].join("\n").rstrip + "\n"
-  else
-    [
-      note.rstrip,
-      "",
-      START_MARKER,
-      body.rstrip,
-      END_MARKER
-    ].join("\n").rstrip + "\n"
-  end
-end
-
-def read_or_create_daily_note(path, create_if_missing)
+def read_or_create_daily_note(path)
   if File.exist?(path)
     File.read(path, encoding: "UTF-8")
-  elsif create_if_missing
+  else
     FileUtils.mkdir_p(File.dirname(path))
     ""
-  else
-    nil
   end
 end
 
@@ -219,11 +258,10 @@ def write_daily_note(path, content)
 end
 
 def update_daily_note(path, posts, options)
-  note = read_or_create_daily_note(path, options.create_if_missing)
-  return :skipped unless note
+  note = read_or_create_daily_note(path)
 
   body = render_posts_body(posts, options.timezone)
-  updated = replace_or_append_block(note, body)
+  updated = ObsidianBlock.replace_or_append(note, body)
 
   if updated == note
     :unchanged
@@ -236,7 +274,7 @@ end
 def main
   options = parse_options
 
-  posts = read_posts(options.input_path)
+  posts = read_posts(options.input_path, options.exclude_texts)
 
   posts_by_date = posts.group_by do |post|
     local_date(post.created_at, options.timezone)

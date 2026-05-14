@@ -8,3 +8,6 @@ obsidian:
 
   daily:
     path_format: "Daily/%Y/%Y-%m-%d.md"
+
+  posts:
+    exclude_texts: []

@@ -1,6 +1,8 @@
 require "yaml"
 
-def load_config(path = "config.yml")
+DEFAULT_CONFIG_PATH = "config.yml"
+
+def load_config(path = DEFAULT_CONFIG_PATH)
   unless File.exist?(path)
     warn "config file not found: #{path}"
     exit 1

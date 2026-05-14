@@ -5,6 +5,8 @@ require "optparse"
 require "open3"
 require "rbconfig"
 
+require_relative "lib/config"
+
 Options = Struct.new(
   :config_path,
   keyword_init: true
@@ -12,13 +14,13 @@ Options = Struct.new(
 
 def parse_options
   options = Options.new(
-    config_path: "config.yml"
+    config_path: DEFAULT_CONFIG_PATH
   )
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: ruby bsky_to_obsidian.rb [--config config.yml]"
+    opts.banner = "Usage: ruby bsky_to_obsidian.rb [--config #{DEFAULT_CONFIG_PATH}]"
 
-    opts.on("--config PATH", "Config file, default: config.yml") do |v|
+    opts.on("--config PATH", "Config file, default: #{DEFAULT_CONFIG_PATH}") do |v|
       options.config_path = v
     end
   end
@@ -51,7 +53,7 @@ def main
   ruby = RbConfig.ruby
 
   run_command(ruby, "extract_car.rb", "--config", options.config_path)
-  run_command(ruby, "insert_obsidian.rb", "--config", options.config_path)
+  run_command(ruby, "upsert_obsidian_daily_notes.rb", "--config", options.config_path)
 
   puts "bsky to obsidian complete"
 end
