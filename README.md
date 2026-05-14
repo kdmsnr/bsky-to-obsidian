@@ -34,6 +34,13 @@ cp config.example.yml config.yml
 
 `config.yml` はローカル設定用で、Git 管理しない想定です。
 
+設定後、Bluesky の CAR ファイルをダウンロードします。デフォルトでは `repo.car` というファイル名を使います（別の名前で保存する場合は、`extract.car_path` を変更してください）。
+
+```sh
+bundle exec ruby download_car.rb
+```
+
+`download_car.rb` は公開 API からリポジトリを取得します。プロテクトしているアカウントなどで取得できない場合は、Bluesky の「設定 > アカウント > 私のデータをエクスポートする > CARファイルをダウンロード」から手動で取得し、`extract.car_path` に指定した場所へ保存してください。
 ## 設定
 
 例:
@@ -89,6 +96,13 @@ Daily/2026/2026-05-15.md
 
 ## 使い方
 
+CAR ファイルを更新する場合:
+
+```sh
+bundle exec ruby download_car.rb
+```
+
+公開 API で取得できないアカウントでは、Bluesky の設定画面から CAR ファイルを手動でダウンロードしてください。
 抽出から Obsidian への書き込みまでまとめて実行します。
 
 ```sh
