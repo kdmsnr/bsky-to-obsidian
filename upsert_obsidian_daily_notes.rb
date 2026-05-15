@@ -209,6 +209,7 @@ def normalize_post_text(text)
   text
     .gsub("\r\n", "\n")
     .gsub("\r", "\n")
+    .gsub(/^([ \t]*)- \[ \] /, '\1- ')
     .rstrip
 end
 
