@@ -18,8 +18,6 @@ Daily note には以下の形式で挿入します。
 
 ## セットアップ
 
-Blueskyのページで「*設定 > アカウント > 私のデータをエクスポートする > CARファイルをダウンロード*」を選択し、ファイルをスクリプトと同じディレクトリに保存します。デフォルトでは `repo.car` というファイル名を使います（別の名前で保存する場合は、`extract.car_path` を変更してください）。スクリプトで取得したい場合は「repo.carのダウンロード」のセクションを参照してください。
-
 依存 gem を入れます。
 
 ```sh
@@ -34,11 +32,21 @@ cp config.example.yml config.yml
 
 `config.yml` はローカル設定用で、Git 管理しない想定です。
 
+CAR ファイルは次のどちらかで用意します。
+
+1. Bluesky のページで「*設定 > アカウント > 私のデータをエクスポートする > CARファイルをダウンロード*」を選び、ファイルをスクリプトと同じディレクトリに保存する
+2. 公開投稿であれば `download_car.rb` でダウンロードする
+
+デフォルトの保存先は `repo.car` です。別の名前を使う場合は `extract.car_path` を変更してください。
+
 ## 設定
 
 例:
 
 ```yaml
+bluesky:
+  handle: bsky.app
+
 extract:
   car_path: repo.car
   out_dir: out
@@ -54,6 +62,10 @@ obsidian:
     exclude_texts:
       - ""
 ```
+
+### `bluesky.handle`
+
+`download_car.rb` で CAR ファイルをダウンロードするときに使う Bluesky のハンドルです。手動で CAR ファイルを用意する場合は不要です。
 
 ### `extract.car_path`
 
@@ -105,6 +117,12 @@ bundle exec ruby bsky_to_obsidian.rb --config=config.yml
 bundle exec ruby extract_car.rb
 ```
 
+repo.car をダウンロードする場合:
+
+```sh
+bundle exec ruby download_car.rb
+```
+
 Obsidian への書き込みだけ実行する場合:
 
 ```sh
@@ -129,30 +147,13 @@ Daily note 内の次の管理ブロックを更新します。
 
 ブロックがなければ末尾に追加します。対象日の Daily note がなければ作成します。
 
-## repo.carのダウンロード
+## CAR ファイルのダウンロード
 
-投稿を公開している場合は、スクリプトでrepo.carをダウンロードできます。
+投稿を公開している場合は、スクリプトで CAR ファイルをダウンロードできます。保存先は `extract.car_path` です。
 
 以下の設定をしてから、
 
 ```yaml
-bluesky:
-  handle: bsky.app
-```
-
-以下を実行します。
-
-```sh
-bundle exec ruby download_car.rb
-```
-
-## repo.carのダウンロード
-
-投稿を公開しているのであれば、スクリプトで CAR ファイルをダウンロードできます。
-
-以下の設定をしてから、
-
-``` yml
 bluesky:
   handle: bsky.app
 ```
