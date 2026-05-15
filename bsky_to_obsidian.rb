@@ -51,7 +51,10 @@ end
 def main
   options = parse_options
   ruby = RbConfig.ruby
+  config = load_config(options.config_path)
+  handle = config_get(config, "bluesky", "handle")
 
+  run_command(ruby, "download_car.rb", "--config", options.config_path) if handle && !handle.empty?
   run_command(ruby, "extract_car.rb", "--config", options.config_path)
   run_command(ruby, "upsert_obsidian_daily_notes.rb", "--config", options.config_path)
 
