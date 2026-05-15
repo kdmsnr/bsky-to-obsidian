@@ -8,6 +8,7 @@ require "optparse"
 
 require_relative "lib/config"
 require_relative "lib/obsidian_block"
+require_relative "lib/reply_filter"
 
 Options = Struct.new(
   :config_path,
@@ -89,23 +90,6 @@ def daily_note_path(vault_path, path_format, date)
   File.join(vault_path, relative_path)
 end
 
-def did_from_at_uri(uri)
-  uri.to_s[%r{\Aat://([^/]+)/}, 1]
-end
-
-def own_reply?(record, repo_did)
-  reply = record["reply"]
-  return false unless reply && repo_did
-
-  ["root", "parent"].any? do |key|
-    did_from_at_uri(reply.dig(key, "uri")) == repo_did
-  end
-end
-
-def reply_to_other_user?(record, repo_did)
-  record["reply"] && repo_did && !own_reply?(record, repo_did)
-end
-
 def read_target_dates(input_path, timezone)
   dates = []
 
@@ -120,7 +104,7 @@ def read_target_dates(input_path, timezone)
     record = item.fetch("record")
     type = record["$type"]
     next unless type == "app.bsky.feed.post"
-    next if reply_to_other_user?(record, item["repo_did"])
+    next if ReplyFilter.reply_to_other_user?(record, item["repo_did"])
 
     created_at = record["createdAt"]
     next if created_at.nil? || created_at.empty?

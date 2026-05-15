@@ -9,6 +9,7 @@ require "fileutils"
 
 require_relative "lib/config"
 require_relative "lib/obsidian_block"
+require_relative "lib/reply_filter"
 
 Post = Struct.new(
   :path,
@@ -120,23 +121,6 @@ def daily_note_path(vault_path, path_format, date)
   File.join(vault_path, relative_path)
 end
 
-def did_from_at_uri(uri)
-  uri.to_s[%r{\Aat://([^/]+)/}, 1]
-end
-
-def own_reply?(record, repo_did)
-  reply = record["reply"]
-  return false unless reply && repo_did
-
-  ["root", "parent"].any? do |key|
-    did_from_at_uri(reply.dig(key, "uri")) == repo_did
-  end
-end
-
-def reply_to_other_user?(record, repo_did)
-  record["reply"] && repo_did && !own_reply?(record, repo_did)
-end
-
 def link_uri_from_facet(facet)
   features = facet["features"]
   return nil unless features.is_a?(Array)
@@ -200,7 +184,7 @@ def read_posts(path, exclude_texts)
 
     type = record["$type"]
     next unless type == "app.bsky.feed.post"
-    next if reply_to_other_user?(record, item["repo_did"])
+    next if ReplyFilter.reply_to_other_user?(record, item["repo_did"])
 
     text = expand_faceted_links(record["text"].to_s, record["facets"])
     created_at = record["createdAt"]

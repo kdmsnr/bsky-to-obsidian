@@ -7,6 +7,7 @@ require "optparse"
 require "fileutils"
 require "time"
 require_relative "lib/config"
+require_relative "lib/reply_filter"
 
 TARGET_COLLECTION = "app.bsky.feed.post"
 
@@ -255,23 +256,6 @@ def split_record_path(path)
   [collection, rkey]
 end
 
-def did_from_at_uri(uri)
-  uri.to_s[%r{\Aat://([^/]+)/}, 1]
-end
-
-def own_reply?(record, repo_did)
-  reply = record["reply"]
-  return false unless reply && repo_did
-
-  ["root", "parent"].any? do |key|
-    did_from_at_uri(reply.dig(key, "uri")) == repo_did
-  end
-end
-
-def reply_to_other_user?(record, repo_did)
-  record["reply"] && !own_reply?(record, repo_did)
-end
-
 def safe_path_component(str)
   str.gsub(%r{[^A-Za-z0-9._:-]}, "_")
 end
@@ -322,7 +306,7 @@ def extract_records(options)
     record_cid = record_cids_by_path.fetch(path)
     record = decode_block(blocks, record_cid)
     normalized_record = normalize_for_json(record)
-    next if reply_to_other_user?(normalized_record, repo_did)
+    next if ReplyFilter.reply_to_other_user?(normalized_record, repo_did)
 
     item = {
       "repo_did" => repo_did,
