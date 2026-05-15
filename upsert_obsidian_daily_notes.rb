@@ -221,7 +221,7 @@ def render_posts_body(posts, timezone)
     time = local_time(post.created_at, timezone).strftime("%H:%M")
     text = normalize_post_text(post.text)
 
-    lines << [time, text].join("\n")
+    lines << ["`#{time}`", text].join("\n")
   end
 
   lines.join("\n\n")
