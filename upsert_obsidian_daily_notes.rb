@@ -26,6 +26,7 @@ Options = Struct.new(
   :timezone,
   :daily_path_format,
   :exclude_texts,
+  :days,
   keyword_init: true
 )
 
@@ -35,16 +36,23 @@ def parse_options
   )
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: ruby upsert_obsidian_daily_notes.rb [--config #{DEFAULT_CONFIG_PATH}]"
+    opts.banner = "Usage: ruby upsert_obsidian_daily_notes.rb [--config #{DEFAULT_CONFIG_PATH}] [--days N]"
 
     opts.on("--config PATH", "Config file, default: #{DEFAULT_CONFIG_PATH}") do |v|
       options.config_path = v
+    end
+
+    opts.on("--days N", Integer, "Sync the last N calendar days, including today") do |v|
+      raise OptionParser::InvalidArgument, "--days must be a positive integer" unless v.positive?
+
+      options.days = v
     end
   end
 
   parser.parse!
 
   config = load_config(options.config_path)
+  options.days = sync_days_config(config, override: options.days)
 
   out_dir = config_get(config, "extract", "out_dir", default: "out")
 
@@ -108,7 +116,7 @@ end
 
 def local_time(time, timezone)
   with_timezone(timezone) do
-    time.localtime
+    time.getlocal
   end
 end
 
@@ -205,6 +213,17 @@ def read_posts(path, exclude_texts)
     .sort_by(&:created_at)
 end
 
+def filter_posts_by_days(posts, days, timezone, now: Time.now)
+  return posts if days.nil?
+
+  today = local_date(now, timezone)
+  first_date = today - (days - 1)
+
+  posts.select do |post|
+    local_date(post.created_at, timezone).between?(first_date, today)
+  end
+end
+
 def normalize_post_text(text)
   text
     .gsub("\r\n", "\n")
@@ -260,6 +279,7 @@ def main
   options = parse_options
 
   posts = read_posts(options.input_path, options.exclude_texts)
+  posts = filter_posts_by_days(posts, options.days, options.timezone)
 
   posts_by_date = posts.group_by do |post|
     local_date(post.created_at, options.timezone)

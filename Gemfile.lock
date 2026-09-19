@@ -2,6 +2,9 @@ GEM
   remote: https://rubygems.org/
   specs:
     cbor (0.5.10.2)
+    nokogiri (1.19.4-arm64-darwin)
+      racc (~> 1.4)
+    racc (1.8.1)
 
 PLATFORMS
   arm64-darwin-24
@@ -9,9 +12,12 @@ PLATFORMS
 
 DEPENDENCIES
   cbor
+  nokogiri
 
 CHECKSUMS
   cbor (0.5.10.2) sha256=df5104f7a62c881123e6505441b1e276208be1771540c2cc3b1de8a210a7c52c
+  nokogiri (1.19.4-arm64-darwin) sha256=a46db9853286e6597b36ebc6953817d15acf3a299583eb3f89fdc6f91dd63527
+  racc (1.8.1) sha256=4a7f6929691dbec8b5209a0b373bc2614882b55fc5d2e447a21aaa691303d62f
 
 BUNDLED WITH
-  4.0.9
+  4.0.19

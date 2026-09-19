@@ -22,3 +22,10 @@ def config_get(config, *keys, default: nil)
 
   current.nil? ? default : current
 end
+
+def sync_days_config(config, override: nil)
+  days = override || config.dig("obsidian", "posts", "days")
+  return days if days.nil? || (days.is_a?(Integer) && days.positive?)
+
+  raise ArgumentError, "obsidian.posts.days must be a positive integer"
+end

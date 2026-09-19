@@ -7,6 +7,11 @@ extract:
   car_path: repo.car
   out_dir: out
 
+# x_to_obsidian.rb で使用します。Bluesky とは独立して実行できます。
+x:
+  handle: kdmsnr
+  archive_dir: x-archive
+
 obsidian:
   vault_path: sample-obsidian
   timezone: Asia/Tokyo
@@ -15,4 +20,6 @@ obsidian:
     path_format: "Daily/%Y/%Y-%m-%d.md"
 
   posts:
+    # Bluesky と X の反映日数。省略時は全期間、指定時は今日を含む直近 N 日分。
+    # days: 7
     exclude_texts: []

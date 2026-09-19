@@ -1,17 +1,23 @@
 # bsky-to-obsidian
 
-Bluesky のログファイル（CAR ファイル）から自分の投稿を取り出し、Obsidian の Daily note に書き込むためのスクリプトです。
+Bluesky のログファイル（CAR ファイル）と X の RSS から自分の投稿を取り出し、Obsidian の Daily note に書き込むためのスクリプトです。
+Bluesky と X は別々のスクリプトで実行し、同じ Daily note 内の専用ブロックをそれぞれ更新します。
 
 Daily note には以下の形式で挿入します。
 
 ```md
 <!-- bsky-to-obsidian:start -->
-12:34
+`12:34`
 投稿本文全文
 
-13:20
+`13:20`
 投稿本文全文
 <!-- bsky-to-obsidian:end -->
+
+<!-- x-to-obsidian:start -->
+`14:05` [X](https://x.com/kdmsnr/status/1234567890)
+X の投稿本文全文
+<!-- x-to-obsidian:end -->
 ```
 
 挿入した部分を削除するスクリプトも用意しています。
@@ -32,7 +38,7 @@ cp config.example.yml config.yml
 
 `config.yml` はローカル設定用で、Git 管理しない想定です。
 
-CAR ファイルは次のどちらかで用意します。
+Bluesky を取り込む場合は、CAR ファイルを次のどちらかで用意します。
 
 1. Bluesky のページで「*設定 > アカウント > 私のデータをエクスポートする > CARファイルをダウンロード*」を選び、ファイルをスクリプトと同じディレクトリに保存する
 2. 公開投稿であれば `download_car.rb` でダウンロードする
@@ -50,6 +56,10 @@ bluesky:
 extract:
   car_path: repo.car
   out_dir: out
+
+x:
+  handle: kdmsnr
+  archive_dir: x-archive
 
 obsidian:
   vault_path: "/Users/user/Documents/obsidian"
@@ -75,6 +85,26 @@ obsidian:
 
 抽出結果の出力先です。`records.jsonl` と個別 JSON ファイルを書き出します。
 
+### `x.handle`
+
+Daily note に書き込む X のアカウント名です。
+RSS に他人の投稿のリポストが含まれていても、その投稿は Daily note には書き込みません。
+RSS には返信先を判定する情報がないため、自分の返信は取り込みます。
+
+### `x.feed_url`
+
+X の RSS 2.0 フィードの URL です（省略可）。
+省略時は `x.handle` から `https://fxtwitter.com/<handle>/feed.xml` を組み立てます。
+別の RSS 取得先を使う場合だけ指定してください。
+Bluesky 用スクリプトでは `x` の設定を使いません。
+
+### `x.archive_dir`
+
+取得した RSS と投稿履歴の保存先です。
+デフォルトは `x-archive` で、Bluesky の抽出先とは独立しています。
+このディレクトリは Git 管理の対象外ですが、過去の投稿を残すためにバックアップしてください。
+保存先を変更した場合は、必要に応じて `.gitignore` にも追加してください。
+
 ### `obsidian.vault_path`
 
 Obsidian vault のパスです。iCloud Drive 上の vault はパスにスペースが入るので、YAML では引用符で囲んでください。
@@ -98,8 +128,29 @@ Daily/2026/2026-05-15.md
 ### `obsidian.posts.exclude_texts`
 
 本文に含まれていたら Obsidian に書き込まない文字列です。
+Bluesky と X の両方に適用します。
+X の履歴ファイルには、除外した投稿も残します。
+
+### `obsidian.posts.days`
+
+Bluesky と X のログを Obsidian に反映する日数です。
+省略時は全期間を対象にします。
+1 以上の整数を指定すると、`obsidian.timezone` での今日を含む直近 N 日分だけ反映します。
+たとえば `days: 7` なら、今日から 6 日前までが対象です。
+
+```yaml
+obsidian:
+  posts:
+    days: 7
+```
+
+対象期間外の Daily note は変更しません。
+CAR のダウンロードと抽出、X の RSS 履歴保存は引き続き全件を対象にします。
+コマンドラインの `--days N` を指定した場合は、設定ファイルの値より優先します。
 
 ## 使い方
+
+Bluesky を取り込む場合:
 
 ```sh
 bundle exec ruby bsky_to_obsidian.rb
@@ -109,6 +160,12 @@ bundle exec ruby bsky_to_obsidian.rb
 
 ```sh
 bundle exec ruby bsky_to_obsidian.rb --config=config.yml
+```
+
+今日を含む直近 7 日分だけ反映する場合:
+
+```sh
+bundle exec ruby bsky_to_obsidian.rb --days 7
 ```
 
 抽出だけ実行する場合:
@@ -129,15 +186,63 @@ Obsidian への書き込みだけ実行する場合:
 bundle exec ruby upsert_obsidian_daily_notes.rb
 ```
 
+`upsert_obsidian_daily_notes.rb` も、設定ファイルの `obsidian.posts.days` と `--days N` に対応しています。
+
 書き込んだところを削除する場合:
 
 ```sh
 bundle exec ruby delete_obsidian_daily_notes.rb
 ```
 
+この削除スクリプトは Bluesky の管理ブロックを対象とします。
+
+## X の取り込みと履歴保存
+
+`config.yml` に `x` の設定を追加して実行します。
+X だけを利用する場合は、`x` と `obsidian` の設定があれば実行できます。
+CAR ファイルは不要です。
+
+```sh
+bundle exec ruby x_to_obsidian.rb
+```
+
+設定ファイルを明示する場合:
+
+```sh
+bundle exec ruby x_to_obsidian.rb --config=config.yml
+```
+
+`obsidian.posts.days` を指定すると、Bluesky と同じ日数で更新対象を絞ります。
+`--days N` による上書きも、通常の取得、`--offline`、`--feed-file` のいずれでも使えます。
+
+取得した XML は `x-archive/feeds/<SHA-256>.xml` に保存します。
+同じ内容の XML は重複して保存しません。
+投稿は投稿 ID ごとに `x-archive/posts.jsonl` に蓄積し、再取得した投稿は最新の内容で更新します。
+RSS から消えた投稿も履歴に残るので、次回の実行で Daily note から消えることはありません。
+取得前に RSS の配信範囲から外れた過去の投稿は、RSS だけでは復元できません。
+
+Daily note は保存済みの投稿履歴から日付ごとに生成し、X 専用の管理ブロック内を時刻順に並べます。
+本文の改行とリンク先を残し、元投稿へのリンクを付けます。
+Bluesky の管理ブロックと手書きの本文は保持します。
+RSS の取得や解析に失敗した場合は、履歴と Daily note を更新せずに終了します。
+
+ネットワークに接続せず、保存済みの履歴から書き込み直す場合:
+
+```sh
+bundle exec ruby x_to_obsidian.rb --offline
+```
+
+保存してある RSS ファイルを履歴に追加して書き込む場合:
+
+```sh
+bundle exec ruby x_to_obsidian.rb --feed-file path/to/feed.xml
+```
+
+`--offline` と `--feed-file` は同時に指定できません。
+
 ## Obsidian への書き込み
 
-Daily note 内の次の管理ブロックを更新します。
+Bluesky は Daily note 内の次の管理ブロックを更新します。
 
 ```md
 <!-- bsky-to-obsidian:start -->
@@ -146,6 +251,7 @@ Daily note 内の次の管理ブロックを更新します。
 ```
 
 ブロックがなければ末尾に追加します。対象日の Daily note がなければ作成します。
+X は同じルールで `<!-- x-to-obsidian:start -->` から `<!-- x-to-obsidian:end -->` までを更新します。
 
 ## CAR ファイルのダウンロード
 

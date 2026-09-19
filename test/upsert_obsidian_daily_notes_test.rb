@@ -30,4 +30,35 @@ assert_equal(
   "rendered logs strip unchecked task markers"
 )
 
+now = Time.iso8601("2026-09-19T15:30:00Z") # September 20 in Asia/Tokyo
+dated_posts = [
+  "2026-09-13T14:59:59Z", # Just before the seven-day window in Asia/Tokyo
+  "2026-09-13T15:00:00Z", # First day, midnight
+  "2026-09-19T14:59:59Z", # Yesterday, 23:59:59
+  "2026-09-19T15:00:00Z", # Today, midnight
+  "2026-09-20T14:59:59Z", # Today, 23:59:59
+  "2026-09-20T15:00:00Z"  # Tomorrow, midnight
+].map { |timestamp| Post.new(created_at: Time.iso8601(timestamp), text: timestamp) }
+
+assert_equal(
+  dated_posts,
+  filter_posts_by_days(dated_posts, nil, "Asia/Tokyo", now: now),
+  "omitting days preserves the full input"
+)
+assert_equal(
+  dated_posts[1..4],
+  filter_posts_by_days(dated_posts, 7, "Asia/Tokyo", now: now),
+  "seven days includes whole local dates and excludes tomorrow"
+)
+assert_equal(
+  dated_posts[3..4],
+  filter_posts_by_days(dated_posts, 1, "Asia/Tokyo", now: now),
+  "one day includes only today in the configured timezone"
+)
+assert_equal(
+  dated_posts[2..3],
+  filter_posts_by_days(dated_posts, 1, "UTC", now: now),
+  "today follows the configured timezone rather than the system timezone"
+)
+
 puts "upsert_obsidian_daily_notes_test: ok"

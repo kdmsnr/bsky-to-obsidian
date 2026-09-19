@@ -9,6 +9,7 @@ require_relative "lib/config"
 
 Options = Struct.new(
   :config_path,
+  :days,
   keyword_init: true
 )
 
@@ -18,10 +19,16 @@ def parse_options
   )
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: ruby bsky_to_obsidian.rb [--config #{DEFAULT_CONFIG_PATH}]"
+    opts.banner = "Usage: ruby bsky_to_obsidian.rb [--config #{DEFAULT_CONFIG_PATH}] [--days N]"
 
     opts.on("--config PATH", "Config file, default: #{DEFAULT_CONFIG_PATH}") do |v|
       options.config_path = v
+    end
+
+    opts.on("--days N", Integer, "Sync the last N calendar days, including today") do |v|
+      raise OptionParser::InvalidArgument, "--days must be a positive integer" unless v.positive?
+
+      options.days = v
     end
   end
 
@@ -52,11 +59,14 @@ def main
   options = parse_options
   ruby = RbConfig.ruby
   config = load_config(options.config_path)
+  days = sync_days_config(config, override: options.days)
   handle = config_get(config, "bluesky", "handle")
 
   run_command(ruby, "download_car.rb", "--config", options.config_path) if handle && !handle.empty?
   run_command(ruby, "extract_car.rb", "--config", options.config_path)
-  run_command(ruby, "upsert_obsidian_daily_notes.rb", "--config", options.config_path)
+  upsert_args = [ruby, "upsert_obsidian_daily_notes.rb", "--config", options.config_path]
+  upsert_args += ["--days", days.to_s] if days
+  run_command(*upsert_args)
 
   puts "bsky to obsidian complete"
 end
