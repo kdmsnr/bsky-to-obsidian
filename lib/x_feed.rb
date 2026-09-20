@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "digest"
 require "fileutils"
 require "json"
 require "net/http"
@@ -99,6 +98,15 @@ module XFeed
     end
   end
 
+  def atomic_write(path)
+    Tempfile.create([".#{File.basename(path)}", ".tmp"], File.dirname(path)) do |file|
+      file.binmode
+      yield file
+      file.close
+      File.rename(file.path, path)
+    end
+  end
+
   def archive(xml, directory)
     incoming = parse(xml)
     FileUtils.mkdir_p(directory)
@@ -107,20 +115,28 @@ module XFeed
       lock.flock(File::LOCK_EX)
       path = File.join(directory, "posts.jsonl")
       existing = File.exist?(path) ? read_archive(directory) : []
-      posts = (existing + incoming).each_with_object({}) { |post, result| result[post.fetch("id")] = post }
-      posts = posts.values.sort_by { |post| [post.fetch("created_at"), post.fetch("id")] }
-
       snapshots = File.join(directory, "feeds")
       FileUtils.mkdir_p(snapshots)
-      snapshot = File.join(snapshots, "#{Digest::SHA256.hexdigest(xml)}.xml")
-      File.binwrite(snapshot, xml) unless File.exist?(snapshot)
+      legacy_snapshots = Dir.children(snapshots)
+        .grep(/\A[0-9a-f]{64}\.xml\z/)
+        .map { |name| File.join(snapshots, name) }
+        .select { |snapshot| File.file?(snapshot) }
+        .sort_by { |snapshot| [File.mtime(snapshot), snapshot] }
 
-      Tempfile.create(["posts", ".jsonl"], directory) do |file|
-        file.set_encoding("UTF-8")
-        posts.each { |post| file.puts(JSON.generate(post)) }
-        file.close
-        File.rename(file.path, path)
+      # Recover any posts in old snapshots before deleting those files.
+      # Existing history and the incoming feed take precedence over old copies.
+      posts = {}
+      legacy_snapshots.each do |snapshot|
+        parse(File.binread(snapshot)).each { |post| posts[post.fetch("id")] = post }
       end
+      (existing + incoming).each { |post| posts[post.fetch("id")] = post }
+      posts = posts.values.sort_by { |post| [post.fetch("created_at"), post.fetch("id")] }
+
+      atomic_write(path) do |file|
+        posts.each { |post| file.puts(JSON.generate(post)) }
+      end
+      atomic_write(File.join(snapshots, "latest.xml")) { |file| file.write(xml) }
+      legacy_snapshots.each { |snapshot| File.delete(snapshot) }
 
       posts
     end

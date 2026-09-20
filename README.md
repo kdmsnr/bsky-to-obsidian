@@ -215,11 +215,14 @@ bundle exec ruby x_to_obsidian.rb --config=config.yml
 `obsidian.posts.days` を指定すると、Bluesky と同じ日数で更新対象を絞ります。
 `--days N` による上書きも、通常の取得、`--offline`、`--feed-file` のいずれでも使えます。
 
-取得した XML は `x-archive/feeds/<SHA-256>.xml` に保存します。
-同じ内容の XML は重複して保存しません。
+取得した XML は `x-archive/feeds/latest.xml` に上書きし、直近に取り込んだ原本を1件だけ残します。
 投稿は投稿 ID ごとに `x-archive/posts.jsonl` に蓄積し、再取得した投稿は最新の内容で更新します。
 RSS から消えた投稿も履歴に残るので、次回の実行で Daily note から消えることはありません。
 取得前に RSS の配信範囲から外れた過去の投稿は、RSS だけでは復元できません。
+
+旧形式の `feeds/<SHA-256>.xml` がある場合は、次回の取り込み時に未保存の投稿を履歴へ補完します。
+投稿履歴と `latest.xml` の保存に成功した後で、旧形式の原本を削除します。
+`--offline` では原本の整理を行いません。
 
 Daily note は保存済みの投稿履歴から日付ごとに生成し、X 専用の管理ブロック内を時刻順に並べます。
 本文の改行とリンク先を残し、元投稿へのリンクを付けます。

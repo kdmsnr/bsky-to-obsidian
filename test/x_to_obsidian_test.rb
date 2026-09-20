@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "cgi"
+require "digest"
 require "open3"
 require "rbconfig"
 require "stringio"
@@ -65,12 +66,14 @@ Dir.mktmpdir("x-to-obsidian-test") do |directory|
   assert_equal(3, posts.size, "feed rollover retains history and status IDs prevent duplicates")
   assert_equal("編集した投稿", posts.find { |post| post["id"] == "100" }.fetch("text"), "existing posts are updated")
   XFeed.archive(feed(changed, second), archive)
-  assert_equal(2, Dir.glob(File.join(archive, "feeds", "*.xml")).size, "identical snapshots are deduplicated")
-  assert_equal(feed(first, repost).b, File.binread(File.join(archive, "feeds", "#{Digest::SHA256.hexdigest(feed(first, repost))}.xml")), "raw XML is retained exactly")
+  assert_equal(["latest.xml"], Dir.children(File.join(archive, "feeds")), "only the latest snapshot is retained")
+  assert_equal(feed(changed, second).b, File.binread(File.join(archive, "feeds", "latest.xml")), "the latest raw XML is retained exactly")
   assert_equal(posts, XFeed.archive(feed, archive), "an empty feed preserves old posts")
   original_archive = File.binread(File.join(archive, "posts.jsonl"))
+  original_snapshot = File.binread(File.join(archive, "feeds", "latest.xml"))
   assert_raises("invalid feeds fail before changing history") { XFeed.archive("<html/>", archive) }
   assert_equal(original_archive, File.binread(File.join(archive, "posts.jsonl")), "failed parsing leaves archive intact")
+  assert_equal(original_snapshot, File.binread(File.join(archive, "feeds", "latest.xml")), "failed parsing leaves the latest snapshot intact")
 
   vault = File.join(directory, "vault")
   config = {
@@ -134,6 +137,40 @@ Dir.mktmpdir("x-to-obsidian-test") do |directory|
   assert_equal(note, File.read(path), "invalid feed does not change daily notes")
   _stdout, _stderr, status = run_script("x_to_obsidian.rb", "--config", config_path, "--offline", "--feed-file", feed_path)
   assert_equal(false, status.success?, "conflicting CLI options are rejected")
+end
+
+Dir.mktmpdir("x-feed-migration-test") do |archive|
+  current = feed_item("100", date: date, body: "<p>保存済みの編集</p>")
+  XFeed.archive(feed(current), archive)
+  snapshots = File.join(archive, "feeds")
+  legacy_paths = [feed(first, repost), feed(second)].map do |xml|
+    path = File.join(snapshots, "#{Digest::SHA256.hexdigest(xml)}.xml")
+    File.binwrite(path, xml)
+    path
+  end
+  File.write(File.join(snapshots, "manual.xml"), "unrelated file")
+  corrupt_path = File.join(snapshots, "#{'a' * 64}.xml")
+  File.write(corrupt_path, "<rss>")
+  original_archive = File.binread(File.join(archive, "posts.jsonl"))
+  original_snapshot = File.binread(File.join(snapshots, "latest.xml"))
+
+  assert_raises("unreadable legacy snapshots prevent destructive cleanup") { XFeed.archive(feed(second), archive) }
+  assert_equal(original_archive, File.binread(File.join(archive, "posts.jsonl")), "failed migration preserves history")
+  assert_equal(original_snapshot, File.binread(File.join(snapshots, "latest.xml")), "failed migration preserves the latest snapshot")
+  assert_equal(true, legacy_paths.all? { |path| File.exist?(path) }, "failed migration preserves old snapshots")
+  File.delete(corrupt_path)
+
+  posts = XFeed.archive(feed(second), archive)
+  assert_equal(%w[100 101 102], posts.map { |post| post.fetch("id") }.sort, "posts from old snapshots are recovered before cleanup")
+  assert_equal("保存済みの編集", posts.find { |post| post["id"] == "100" }.fetch("text"), "legacy snapshots do not overwrite existing history")
+  assert_equal(["latest.xml", "manual.xml"], Dir.children(snapshots).sort, "cleanup removes only managed legacy snapshots")
+  assert_equal(feed(second).b, File.binread(File.join(snapshots, "latest.xml")), "migration retains the incoming raw feed")
+
+  3.times do |index|
+    XFeed.archive(feed(feed_item((200 + index).to_s, date: date, body: "<p>#{index}</p>")), archive)
+  end
+  assert_equal(["latest.xml", "manual.xml"], Dir.children(snapshots).sort, "different feeds do not accumulate snapshot files")
+  assert_equal(6, XFeed.read_archive(archive).size, "all posts survive snapshot replacement")
 end
 
 Dir.mktmpdir("x-days-boundary-test") do |directory|
