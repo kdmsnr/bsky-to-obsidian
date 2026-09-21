@@ -9,6 +9,7 @@ require "stringio"
 require "tmpdir"
 
 require_relative "../x_to_obsidian"
+require_relative "../lib/obsidian_notes"
 
 def assert_equal(expected, actual, message)
   return if expected == actual
@@ -112,11 +113,14 @@ Dir.mktmpdir("x-to-obsidian-test") do |directory|
   }) + "\n")
   x_block = note[/<!-- x-to-obsidian:start -->.*?<!-- x-to-obsidian:end -->/m]
   _stdout, stderr, status = run_script("upsert_obsidian_daily_notes.rb", "--config", config_path)
-  assert_equal(true, status.success?, "Bluesky import succeeds: #{stderr}")
-  assert_equal(true, File.read(path).include?(x_block), "Bluesky updates preserve the X block")
+  assert_equal(true, status.success?, "shared import succeeds: #{stderr}")
+  assert_equal(true, File.read(path).include?(x_block), "shared imports preserve unchanged X content")
   _stdout, stderr, status = run_script("delete_obsidian_daily_notes.rb", "--config", config_path)
-  assert_equal(true, status.success?, "Bluesky deletion succeeds: #{stderr}")
-  assert_equal(true, File.read(path).include?(x_block), "Bluesky deletion preserves the X block")
+  assert_equal(true, status.success?, "shared deletion succeeds: #{stderr}")
+  assert_equal(false, File.read(path).include?(x_block), "shared deletion removes the X block")
+  assert_equal(false, File.read(path).include?("<!-- bsky-to-obsidian:start -->"), "shared deletion removes the Bluesky block")
+  _stdout, stderr, status = run_script("upsert_obsidian_daily_notes.rb", "--config", config_path)
+  assert_equal(true, status.success?, "saved histories restore both blocks: #{stderr}")
 
   config["obsidian"]["posts"] = { "exclude_texts" => ["投稿"] }
   File.write(config_path, YAML.dump(config))
@@ -198,7 +202,7 @@ Dir.mktmpdir("x-days-boundary-test") do |directory|
     original_stdout = $stdout
     begin
       $stdout = StringIO.new
-      XToObsidian.write_notes(posts, config, now: now)
+      ObsidianNotes.write({ x: ObsidianNotes.x_posts(posts, config) }, config, now: now)
     ensure
       $stdout = original_stdout
     end

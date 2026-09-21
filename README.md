@@ -195,6 +195,7 @@ Bluesky の通常実行では保存済みの投稿に追いつくまで API を�
 ## 使い方
 
 投稿を取得し、Daily note に反映します。
+どちらも内部で `upsert_obsidian_daily_notes.rb` を呼び出すため、書き込みコマンドを別に実行する必要はありません。
 
 ```sh
 # Bluesky
@@ -213,27 +214,20 @@ bundle exec ruby x_to_obsidian.rb
 
 ## Obsidian への書き込み
 
-通常の取り込みコマンドは、投稿の取得から Daily note への書き込みまで実行します。
-取得せずに保存済みのデータから書き込み直す場合は、次のコマンドを使います。
-
-Bluesky:
+保存済みの Bluesky と X の履歴をまとめて書き込み直す場合:
 
 ```sh
-bundle exec ruby bsky_to_obsidian.rb --offline
+bundle exec ruby upsert_obsidian_daily_notes.rb
 ```
 
-X:
-
-```sh
-bundle exec ruby x_to_obsidian.rb --offline
-```
-
-どちらも `--config PATH` と `--days N` を指定できます。
+投稿の再取得は行わず、履歴ファイルがないサービスはスキップします。
+`--config PATH` と `--days N` を指定できます。
 反映日数を省略した場合は、設定ファイルの `obsidian.posts.days` に従います。
 
 Daily note は保存済みの投稿履歴から日付ごとに生成し、管理ブロック内を時刻順に並べます。
 本文の改行とリンク先を残し、元投稿へのリンクを付けます。
-内容が変わったファイルだけ書き込み、もう一方のサービスの管理ブロックと手書きの本文は保持します。
+内容が変わったファイルだけ書き込み、手書きの本文は保持します。
+各サービスの取り込みコマンドでは、そのサービスの管理ブロックだけを更新します。
 API や RSS の取得または解析に失敗した場合は、履歴と Daily note を更新せずに終了します。
 
 Bluesky は Daily note 内の次の管理ブロックを更新します。
@@ -247,8 +241,11 @@ Bluesky は Daily note 内の次の管理ブロックを更新します。
 ブロックがなければ末尾に追加します。対象日の Daily note がなければ作成します。
 X は同じルールで `<!-- x-to-obsidian:start -->` から `<!-- x-to-obsidian:end -->` までを更新します。
 
-Bluesky の管理ブロックを削除する場合:
+Bluesky と X の管理ブロックを削除する場合:
 
 ```sh
 bundle exec ruby delete_obsidian_daily_notes.rb
 ```
+
+vault 内の Markdown ファイルから両方の管理ブロックを削除します。
+反映日数の設定や履歴ファイルの有無によらず全期間が対象で、手書きの本文、ノートファイル、保存済みの投稿履歴は残します。

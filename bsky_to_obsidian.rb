@@ -2,11 +2,10 @@
 # frozen_string_literal: true
 
 require "optparse"
-require "open3"
-require "rbconfig"
 
 require_relative "lib/config"
 require_relative "lib/bsky_feed"
+require_relative "lib/script_runner"
 
 module BskyToObsidian
   module_function
@@ -32,13 +31,7 @@ module BskyToObsidian
   end
 
   def run_command(script, *args)
-    cmd = [RbConfig.ruby, File.join(__dir__, script), *args]
-    puts "$ #{cmd.join(' ')}"
-    success = Open3.popen2e(*cmd) do |_stdin, output, wait_thread|
-      output.each { |line| print line }
-      wait_thread.value.success?
-    end
-    raise "command failed: #{script}" unless success
+    ScriptRunner.run(script, *args)
   end
 
   def sync(config, options, client: BskyFeed)
@@ -80,7 +73,7 @@ module BskyToObsidian
     File.open(File.join(directory, ".bsky-sync.lock"), "a") do |lock|
       lock.flock(File::LOCK_EX)
       sync(config, options, client: client) unless options[:offline]
-      args = ["--config", options.fetch(:config)]
+      args = ["--config", options.fetch(:config), "--source", "bsky"]
       args += ["--days", days.to_s] if days
       run_command("upsert_obsidian_daily_notes.rb", *args)
     end
