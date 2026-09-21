@@ -48,17 +48,10 @@ Dir.mktmpdir("bsky-days-test-") do |dir|
   x_jsonl = x_posts.map { |post| JSON.generate(post) }.join("\n")
   File.write(File.join(x_archive, "posts.jsonl"), x_jsonl)
 
-  # Exercise the main command without downloading or requiring a CAR fixture.
-  File.write(File.join(dir, "extract_car.rb"), "exit 0\n")
-  File.write(
-    File.join(dir, "upsert_obsidian_daily_notes.rb"),
-    "require #{File.join(repo_root, 'upsert_obsidian_daily_notes.rb').inspect}\nmain\n"
-  )
-
   ["bsky_to_obsidian.rb", "upsert_obsidian_daily_notes.rb", "x_to_obsidian.rb"].each do |script|
     x_script = script == "x_to_obsidian.rb"
     source = x_script ? "x" : "bsky"
-    input_args = x_script ? ["--offline"] : []
+    input_args = script == "upsert_obsidian_daily_notes.rb" ? [] : ["--offline"]
     cases = [
       [{}, [], dates],
       [{ "days" => 7 }, [], dates[1..]],

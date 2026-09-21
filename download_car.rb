@@ -32,13 +32,8 @@ def parse_options
 
   config = load_config(options.config_path)
 
-  options.handle = config_get(config, "bluesky", "handle")
+  options.handle = bluesky_actor_config(config)
   options.car_path = config_get(config, "extract", "car_path", default: "repo.car")
-
-  unless options.handle && !options.handle.empty?
-    warn "bluesky.handle is required in #{options.config_path}"
-    exit 1
-  end
 
   options
 end
@@ -123,7 +118,7 @@ end
 def main
   options = parse_options
 
-  did = resolve_handle(options.handle)
+  did = options.handle.start_with?("did:") ? options.handle : resolve_handle(options.handle)
   pds_endpoint = resolve_pds_endpoint(did)
 
   puts "resolved #{options.handle}: #{did}"

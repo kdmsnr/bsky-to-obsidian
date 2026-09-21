@@ -1,7 +1,6 @@
 bluesky:
-  # download_car.rb を使う場合に指定します。
-  # 手動で CAR ファイルを取得する場合は使いません。
-  handle: bsky.app
+  # 公式 RSS の URL。URL 内の DID またはハンドルを API と CAR の取得に使います。
+  feed_url: "https://bsky.app/profile/bsky.app/rss"
 
 extract:
   car_path: repo.car
