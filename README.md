@@ -219,7 +219,7 @@ bundle exec ruby x_to_obsidian.rb
 Bluesky:
 
 ```sh
-bundle exec ruby upsert_obsidian_daily_notes.rb
+bundle exec ruby bsky_to_obsidian.rb --offline
 ```
 
 X:
