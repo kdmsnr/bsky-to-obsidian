@@ -133,7 +133,7 @@ Bluesky 用スクリプトでは `x` の設定を使いません。
 bundle exec ruby x_to_obsidian.rb --feed-file path/to/feed.xml
 ```
 
-`--days N` を併用できますが、`--offline` とは同時に指定できません。
+`--days N` を併用できます。
 
 ### `x.archive_dir`
 
@@ -147,7 +147,6 @@ RSS から消えた投稿も履歴には残りますが、取得前に配信範�
 
 旧形式の `feeds/<SHA-256>.xml` があれば、次回の取り込み時に未保存の投稿を履歴へ補完します。
 履歴と `latest.xml` の保存に成功した後で旧形式の原本を削除します。
-`--offline` では原本の整理を行いません。
 
 ### `obsidian.vault_path`
 
@@ -211,7 +210,6 @@ bundle exec ruby x_to_obsidian.rb
 | --- | --- |
 | `--config PATH` | 設定ファイルを指定（既定は `config.yml`） |
 | `--days N` | 今日を含む直近 N 日分だけ反映 |
-| `--offline` | 取得せず、保存済みの履歴から反映 |
 
 ## Obsidian への書き込み
 
@@ -223,8 +221,6 @@ Bluesky:
 ```sh
 bundle exec ruby upsert_obsidian_daily_notes.rb
 ```
-
-`bundle exec ruby bsky_to_obsidian.rb --offline` でも同じ書き込み処理を実行できます。
 
 X:
 
@@ -275,4 +271,4 @@ bundle exec ruby bsky_to_obsidian.rb --refresh-car
 
 `extract_car.rb` は抽出結果だけを更新し、既存の `posts.jsonl` は変更しません。
 `--refresh-car` は過去分を履歴に補完し、CAR から消えた投稿も保持します。
-`--days N` を併用できますが、`--offline` とは同時に指定できません。
+`--days N` を併用できます。
