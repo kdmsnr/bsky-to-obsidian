@@ -252,23 +252,3 @@ Bluesky の管理ブロックを削除する場合:
 ```sh
 bundle exec ruby delete_obsidian_daily_notes.rb
 ```
-
-## CAR ファイルの操作
-
-初回の取り込みでは、必要に応じて CAR のダウンロードと抽出を自動で行います。
-個別に実行する場合は、次のコマンドを使います。
-
-```sh
-# ダウンロードだけ（保存先は extract.car_path）
-bundle exec ruby download_car.rb
-
-# 抽出だけ
-bundle exec ruby extract_car.rb
-
-# 再取得して履歴にマージし、Daily note に反映
-bundle exec ruby bsky_to_obsidian.rb --refresh-car
-```
-
-`extract_car.rb` は抽出結果だけを更新し、既存の `posts.jsonl` は変更しません。
-`--refresh-car` は過去分を履歴に補完し、CAR から消えた投稿も保持します。
-`--days N` を併用できます。
