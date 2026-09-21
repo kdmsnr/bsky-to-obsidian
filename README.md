@@ -42,6 +42,8 @@ cp config.example.yml config.yml
 ```
 
 `config.yml` はローカル設定用で、Git 管理しない想定です。
+X だけを利用する場合は、`x` と `obsidian` の設定があれば実行できます。
+CAR ファイルは不要です。
 
 Bluesky のアカウントを `bluesky.handle`（または `bluesky.did`）に設定します。
 ログイン情報と RSS の URL は不要です。
@@ -122,8 +124,15 @@ Bluesky 用スクリプトでは `x` の設定を使いません。
 
 取得した RSS と投稿履歴の保存先です。
 デフォルトは `x-archive` で、Bluesky の抽出先とは独立しています。
+投稿は `posts.jsonl` に投稿 ID ごとに蓄積し、再取得した投稿は最新の内容で更新します。
+RSS の原本は `feeds/latest.xml` に上書きし、直近の1件だけ残します。
+RSS から消えた投稿も履歴には残りますが、取得前に配信範囲から外れた投稿は復元できません。
 このディレクトリは Git 管理の対象外ですが、過去の投稿を残すためにバックアップしてください。
 保存先を変更した場合は、必要に応じて `.gitignore` にも追加してください。
+
+旧形式の `feeds/<SHA-256>.xml` があれば、次回の取り込み時に未保存の投稿を履歴へ補完します。
+履歴と `latest.xml` の保存に成功した後で旧形式の原本を削除します。
+`--offline` では原本の整理を行いません。
 
 ### `obsidian.vault_path`
 
@@ -177,28 +186,33 @@ Bluesky を取り込む場合:
 bundle exec ruby bsky_to_obsidian.rb
 ```
 
+X を取り込む場合:
+
+```sh
+bundle exec ruby x_to_obsidian.rb
+```
+
 設定ファイルを明示する場合:
 
 ```sh
 bundle exec ruby bsky_to_obsidian.rb --config=config.yml
+bundle exec ruby x_to_obsidian.rb --config=config.yml
 ```
 
 今日を含む直近 7 日分だけ反映する場合:
 
 ```sh
 bundle exec ruby bsky_to_obsidian.rb --days 7
+bundle exec ruby x_to_obsidian.rb --days 7
 ```
 
-通常実行では、認証不要の公開 API から100件ずつ取得し、保存済みの通常投稿（リポストを除く）が現れたページまで取り込みます。
+Bluesky は、認証不要の公開 API から100件ずつ取得し、保存済みの通常投稿（リポストを除く）が現れたページまで取り込みます。
 保存済みの投稿が見つからない場合は、API が返す最終ページまで取得します。
 CAR のダウンロードと抽出は、履歴ができた後の通常実行では行いません。
 
 取得した投稿は AT URI（DID と投稿 ID を含む識別子）で履歴にマージします。
 同じ投稿を再取得した場合は内容を更新し、今回取得しなかった投稿も残します。
 自分への返信を含めて取り込み、他人への返信と他人の投稿のリポストは Daily note に書き込みません。
-API の取得や解析に失敗した場合は、投稿履歴と Daily note を更新せずに終了します。
-
-Daily note は履歴から生成し、内容が変わったファイルだけ書き込みます。
 API の取得範囲より古い投稿の変更や削除は追跡しません。
 Bluesky 上で削除された投稿も保存済みの履歴には残ります。
 
@@ -206,7 +220,17 @@ Bluesky 上で削除された投稿も保存済みの履歴には残ります。
 
 ```sh
 bundle exec ruby bsky_to_obsidian.rb --offline
+bundle exec ruby x_to_obsidian.rb --offline
 ```
+
+X の保存済み RSS ファイルを履歴に追加して書き込む場合:
+
+```sh
+bundle exec ruby x_to_obsidian.rb --feed-file path/to/feed.xml
+```
+
+`--offline` と `--feed-file` は同時に指定できません。
+どちらも `--days N` を併用できます。
 
 CAR を再取得して過去分を履歴に補完する場合:
 
@@ -249,54 +273,12 @@ bundle exec ruby delete_obsidian_daily_notes.rb
 
 この削除スクリプトは Bluesky の管理ブロックを対象とします。
 
-## X の取り込みと履歴保存
-
-`config.yml` に `x` の設定を追加して実行します。
-X だけを利用する場合は、`x` と `obsidian` の設定があれば実行できます。
-CAR ファイルは不要です。
-
-```sh
-bundle exec ruby x_to_obsidian.rb
-```
-
-設定ファイルを明示する場合:
-
-```sh
-bundle exec ruby x_to_obsidian.rb --config=config.yml
-```
-
-`obsidian.posts.days` を指定すると、Bluesky と同じ日数で更新対象を絞ります。
-`--days N` による上書きも、通常の取得、`--offline`、`--feed-file` のいずれでも使えます。
-
-取得した XML は `x-archive/feeds/latest.xml` に上書きし、直近に取り込んだ原本を1件だけ残します。
-投稿は投稿 ID ごとに `x-archive/posts.jsonl` に蓄積し、再取得した投稿は最新の内容で更新します。
-RSS から消えた投稿も履歴に残るので、次回の実行で Daily note から消えることはありません。
-取得前に RSS の配信範囲から外れた過去の投稿は、RSS だけでは復元できません。
-
-旧形式の `feeds/<SHA-256>.xml` がある場合は、次回の取り込み時に未保存の投稿を履歴へ補完します。
-投稿履歴と `latest.xml` の保存に成功した後で、旧形式の原本を削除します。
-`--offline` では原本の整理を行いません。
-
-Daily note は保存済みの投稿履歴から日付ごとに生成し、X 専用の管理ブロック内を時刻順に並べます。
-本文の改行とリンク先を残し、元投稿へのリンクを付けます。
-Bluesky の管理ブロックと手書きの本文は保持します。
-RSS の取得や解析に失敗した場合は、履歴と Daily note を更新せずに終了します。
-
-ネットワークに接続せず、保存済みの履歴から書き込み直す場合:
-
-```sh
-bundle exec ruby x_to_obsidian.rb --offline
-```
-
-保存してある RSS ファイルを履歴に追加して書き込む場合:
-
-```sh
-bundle exec ruby x_to_obsidian.rb --feed-file path/to/feed.xml
-```
-
-`--offline` と `--feed-file` は同時に指定できません。
-
 ## Obsidian への書き込み
+
+Daily note は保存済みの投稿履歴から日付ごとに生成し、管理ブロック内を時刻順に並べます。
+本文の改行とリンク先を残し、元投稿へのリンクを付けます。
+内容が変わったファイルだけ書き込み、もう一方のサービスの管理ブロックと手書きの本文は保持します。
+API や RSS の取得または解析に失敗した場合は、履歴と Daily note を更新せずに終了します。
 
 Bluesky は Daily note 内の次の管理ブロックを更新します。
 
