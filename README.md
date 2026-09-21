@@ -16,7 +16,7 @@ Daily note には以下の形式で挿入します。
 <!-- bsky-to-obsidian:end -->
 
 <!-- x-to-obsidian:start -->
-`14:05` [X](https://x.com/kdmsnr/status/1234567890)
+`14:05` [X](https://x.com/kdmsnr/status/2101309425629979034)
 X の投稿本文全文
 <!-- x-to-obsidian:end -->
 ```
