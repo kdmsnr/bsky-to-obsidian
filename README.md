@@ -8,10 +8,10 @@ Daily note には以下の形式で挿入します。
 
 ```md
 <!-- bsky-to-obsidian:start -->
-`12:34`
+`12:34` [Bluesky](https://bsky.app/profile/did:plc:srzuazebez52n6odhfuplmpq/post/3mvxa4mgkzc4m)
 投稿本文全文
 
-`13:20`
+`13:20` [Bluesky](https://bsky.app/profile/did:plc:srzuazebez52n6odhfuplmpq/post/3mvxhqb2kxf2a)
 投稿本文全文
 <!-- bsky-to-obsidian:end -->
 
@@ -20,6 +20,10 @@ Daily note には以下の形式で挿入します。
 X の投稿本文全文
 <!-- x-to-obsidian:end -->
 ```
+
+Bluesky の投稿リンクは、保存済みの DID と投稿 ID から生成します。
+リンクのための追加の API 呼び出しは行いません。
+DID や投稿 ID がない古い抽出データは、リンクなしで取り込みます。
 
 挿入した部分を削除するスクリプトも用意しています。
 

@@ -14,6 +14,7 @@ require_relative "lib/reply_filter"
 Post = Struct.new(
   :path,
   :rkey,
+  :repo_did,
   :created_at,
   :text,
   keyword_init: true
@@ -203,6 +204,7 @@ def read_posts(path, exclude_texts)
     posts << Post.new(
       path: item["path"],
       rkey: item["rkey"],
+      repo_did: item["repo_did"],
       created_at: Time.iso8601(created_at),
       text: text
     )
@@ -241,7 +243,11 @@ def render_posts_body(posts, timezone)
     time = local_time(post.created_at, timezone).strftime("%H:%M")
     text = normalize_post_text(post.text)
 
-    lines << ["`#{time}`", text].join("\n")
+    heading = "`#{time}`"
+    unless post.repo_did.to_s.empty? || post.rkey.to_s.empty?
+      heading += " [Bluesky](https://bsky.app/profile/#{post.repo_did}/post/#{post.rkey})"
+    end
+    lines << [heading, text].join("\n")
   end
 
   lines.join("\n\n")

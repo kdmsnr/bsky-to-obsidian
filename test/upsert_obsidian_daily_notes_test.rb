@@ -20,12 +20,13 @@ assert_equal(
 post = Post.new(
   path: "app.bsky.feed.post/example",
   rkey: "example",
+  repo_did: "did:plc:self",
   created_at: Time.iso8601("2024-09-25T16:44:55Z"),
   text: "- [ ] ジガルタンダ・ダブルX\n- [x] ソウルの春"
 )
 
 assert_equal(
-  "`16:44`\n- ジガルタンダ・ダブルX\n- [x] ソウルの春",
+  "`16:44` [Bluesky](https://bsky.app/profile/did:plc:self/post/example)\n- ジガルタンダ・ダブルX\n- [x] ソウルの春",
   render_posts_body([post], "UTC"),
   "rendered logs strip unchecked task markers"
 )
