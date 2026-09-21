@@ -1,5 +1,4 @@
 require "yaml"
-require "uri"
 
 DEFAULT_CONFIG_PATH = "config.yml"
 
@@ -32,28 +31,9 @@ def sync_days_config(config, override: nil)
 end
 
 def bluesky_actor_config(config)
-  feed_url = config_get(config, "bluesky", "feed_url").to_s.strip
-  unless feed_url.empty?
-    begin
-      uri = URI(feed_url)
-    rescue URI::InvalidURIError
-      raise ArgumentError, "bluesky.feed_url must be https://bsky.app/profile/<DID-or-handle>/rss"
-    end
-    match = uri.path&.match(%r{\A/profile/([^/]+)/rss/?\z})
-    unless uri.is_a?(URI::HTTPS) && uri.host == "bsky.app" && uri.port == 443 &&
-           !uri.userinfo && !uri.query && !uri.fragment && match
-      raise ArgumentError, "bluesky.feed_url must be https://bsky.app/profile/<DID-or-handle>/rss"
-    end
-
-    actor = URI::DEFAULT_PARSER.unescape(match[1])
-    raise ArgumentError, "invalid account in bluesky.feed_url" unless actor.match?(/\A[A-Za-z0-9._:%-]+\z/)
-
-    return actor
-  end
-
   %w[did handle].each do |key|
     actor = config_get(config, "bluesky", key).to_s.strip
     return actor unless actor.empty?
   end
-  raise ArgumentError, "bluesky.feed_url, bluesky.did or bluesky.handle is required"
+  raise ArgumentError, "bluesky.did or bluesky.handle is required"
 end

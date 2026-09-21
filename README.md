@@ -39,8 +39,11 @@ cp config.example.yml config.yml
 
 `config.yml` はローカル設定用で、Git 管理しない想定です。
 
-Bluesky を取り込む場合は、公式 RSS の URL を `bluesky.feed_url` に設定します。
-初回実行では既存の `out/records.jsonl` を履歴に取り込みます。
+Bluesky のアカウントを `bluesky.handle`（または `bluesky.did`）に設定します。
+ログイン情報と RSS の URL は不要です。
+初回は CAR ファイルで過去分をまとめて取り込み、API を呼び出す回数を抑えます。
+
+既存の `out/records.jsonl` があれば再利用します。
 抽出結果がなければ CAR ファイルを抽出し、CAR ファイルもなければ自動でダウンロードします。
 
 CAR ファイルをあらかじめ用意する場合は、次のどちらかで取得します。
@@ -56,7 +59,7 @@ CAR ファイルをあらかじめ用意する場合は、次のどちらかで�
 
 ```yaml
 bluesky:
-  feed_url: "https://bsky.app/profile/bsky.app/rss"
+  handle: bsky.app
 
 extract:
   car_path: repo.car
@@ -78,22 +81,17 @@ obsidian:
       - ""
 ```
 
-### `bluesky.feed_url`
-
-公式 RSS の URL を指定します。
-`https://bsky.app/profile/<DID またはハンドル>/rss` の形式に対応しています。
-URL 内のアカウント識別子を公開 API と CAR ファイルの取得に使います。
-返信も取得できるように、投稿本文は公開 API から取得します。
-
 ### `bluesky.did` と `bluesky.handle`
 
-既存の設定との互換性のため、DID またはハンドルを直接指定することもできます。
-優先順位は `feed_url`、`did`、`handle` の順です。
+公開 API と CAR ファイルの取得対象です。
+どちらかの指定が必要で、両方指定した場合は `did` を優先します。
 DID を使うと、ハンドルの変更後も同じアカウントを取得できます。
 
 ### `extract.car_path`
 
-入力する CAR ファイルです。デフォルト例では `repo.car` です。
+初回の履歴作成に使う CAR ファイルです。
+デフォルトは `repo.car` で、必要なファイルがなければ自動でダウンロードします。
+`--refresh-car` または `download_car.rb` で再取得する場合も、このパスに保存します。
 
 ### `extract.out_dir`
 
@@ -311,11 +309,11 @@ X は同じルールで `<!-- x-to-obsidian:start -->` から `<!-- x-to-obsidia
 
 投稿を公開している場合は、スクリプトで CAR ファイルをダウンロードできます。保存先は `extract.car_path` です。
 
-`bluesky.feed_url` を設定してから、
+`bluesky.handle` または `bluesky.did` を設定してから、
 
 ```yaml
 bluesky:
-  feed_url: "https://bsky.app/profile/bsky.app/rss"
+  handle: bsky.app
 ```
 
 以下を実行します。

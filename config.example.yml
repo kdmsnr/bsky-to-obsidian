@@ -1,6 +1,6 @@
 bluesky:
-  # 公式 RSS の URL。URL 内の DID またはハンドルを API と CAR の取得に使います。
-  feed_url: "https://bsky.app/profile/bsky.app/rss"
+  # API と CAR の取得に使うアカウント。did で指定することもできます。
+  handle: bsky.app
 
 extract:
   car_path: repo.car

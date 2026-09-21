@@ -60,9 +60,9 @@ def fake_client(pages, calls = [])
   request = fake_request(pages, calls)
   Object.new.tap do |client|
     client.define_singleton_method(:resolve_actor) do |actor|
-      raise "unexpected actor: #{actor}" unless actor == DID
+      raise "unexpected actor: #{actor}" unless [DID, "self.example"].include?(actor)
 
-      actor
+      DID
     end
     client.define_singleton_method(:fetch_latest) do |did, known_uris:|
       BskyFeed.fetch_latest(did, known_uris: known_uris, request: request)
@@ -76,6 +76,15 @@ def quiet
   yield
 ensure
   $stdout = old_stdout
+end
+
+assert_equal(
+  "self.example",
+  bluesky_actor_config({ "bluesky" => { "handle" => "self.example", "feed_url" => "https://bsky.app/profile/#{OTHER_DID}/rss" } }),
+  "the account is independent of the RSS URL"
+)
+assert_raises("an RSS URL cannot substitute for an explicit account") do
+  bluesky_actor_config({ "bluesky" => { "feed_url" => "https://bsky.app/profile/#{DID}/rss" } })
 end
 
 # A known self-repost or another author's post cannot end a catch-up fetch.
@@ -125,7 +134,7 @@ Dir.mktmpdir("bsky-to-obsidian-test") do |directory|
   vault = File.join(directory, "vault")
   FileUtils.mkdir_p([out, vault])
   config = {
-    "bluesky" => { "feed_url" => "https://bsky.app/profile/#{DID}/rss", "did" => OTHER_DID, "handle" => "ignored.example" },
+    "bluesky" => { "handle" => "self.example" },
     "extract" => { "out_dir" => out, "car_path" => File.join(directory, "missing.car") },
     "obsidian" => { "vault_path" => vault, "timezone" => "Asia/Tokyo", "daily" => { "path_format" => "%Y-%m-%d.md" },
                     "posts" => { "exclude_texts" => ["excluded"] } }
@@ -216,7 +225,7 @@ end
 
 Dir.mktmpdir("bsky-car-bootstrap-test") do |directory|
   config = {
-    "bluesky" => { "feed_url" => "https://bsky.app/profile/#{DID}/rss" },
+    "bluesky" => { "did" => DID },
     "extract" => { "out_dir" => File.join(directory, "out"), "car_path" => File.join(directory, "repo.car") },
     "obsidian" => { "vault_path" => File.join(directory, "vault") }
   }
