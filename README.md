@@ -92,6 +92,11 @@ obsidian:
 公開 API と CAR ファイルの取得対象です。
 どちらかの指定が必要で、両方指定した場合は `did` を優先します。
 DID を使うと、ハンドルの変更後も同じアカウントを取得できます。
+自分への返信を含めて取り込み、他人への返信と他人の投稿のリポストは除外します。
+
+初回の履歴作成後は、公開 API から100件ずつ取得し、保存済みの通常投稿（リポストを除く）が現れたページで止めます。
+保存済みの投稿が見つからなければ、API が返す最終ページまで取得します。
+通常実行では CAR を再取得しません。
 
 ### `extract.car_path`
 
@@ -104,6 +109,8 @@ DID を使うと、ハンドルの変更後も同じアカウントを取得で�
 CAR の抽出結果と Bluesky の投稿履歴の保存先です。
 CAR の抽出では `records.jsonl` と個別 JSON ファイルを書き出し、通常の取り込みでは `posts.jsonl` に履歴を蓄積します。
 Daily note は `posts.jsonl` を優先し、なければ `records.jsonl` から生成します。
+投稿は AT URI（DID と投稿 ID を含む識別子）でマージし、再取得した投稿を更新します。
+今回取得しなかった投稿も保持するため、古い投稿の変更や削除は自動では反映しません。
 このディレクトリは Git 管理の対象外なので、履歴を残すためにバックアップしてください。
 保存先を変更した場合は、必要に応じて `.gitignore` にも追加してください。
 
@@ -119,6 +126,14 @@ X の RSS 2.0 フィードの URL です（省略可）。
 省略時は `x.handle` から `https://fxtwitter.com/<handle>/feed.xml` を組み立てます。
 別の RSS 取得先を使う場合だけ指定してください。
 Bluesky 用スクリプトでは `x` の設定を使いません。
+
+保存済みの RSS ファイルを取り込む場合:
+
+```sh
+bundle exec ruby x_to_obsidian.rb --feed-file path/to/feed.xml
+```
+
+`--days N` を併用できますが、`--offline` とは同時に指定できません。
 
 ### `x.archive_dir`
 
@@ -180,75 +195,23 @@ Bluesky の通常実行では保存済みの投稿に追いつくまで API を�
 
 ## 使い方
 
-Bluesky を取り込む場合:
+投稿を取得し、Daily note に反映します。
 
 ```sh
+# Bluesky
 bundle exec ruby bsky_to_obsidian.rb
-```
 
-X を取り込む場合:
-
-```sh
+# X
 bundle exec ruby x_to_obsidian.rb
 ```
 
-設定ファイルを明示する場合:
+どちらも次のオプションを指定できます。
 
-```sh
-bundle exec ruby bsky_to_obsidian.rb --config=config.yml
-bundle exec ruby x_to_obsidian.rb --config=config.yml
-```
-
-今日を含む直近 7 日分だけ反映する場合:
-
-```sh
-bundle exec ruby bsky_to_obsidian.rb --days 7
-bundle exec ruby x_to_obsidian.rb --days 7
-```
-
-Bluesky は、認証不要の公開 API から100件ずつ取得し、保存済みの通常投稿（リポストを除く）が現れたページまで取り込みます。
-保存済みの投稿が見つからない場合は、API が返す最終ページまで取得します。
-CAR のダウンロードと抽出は、履歴ができた後の通常実行では行いません。
-
-取得した投稿は AT URI（DID と投稿 ID を含む識別子）で履歴にマージします。
-同じ投稿を再取得した場合は内容を更新し、今回取得しなかった投稿も残します。
-自分への返信を含めて取り込み、他人への返信と他人の投稿のリポストは Daily note に書き込みません。
-API の取得範囲より古い投稿の変更や削除は追跡しません。
-Bluesky 上で削除された投稿も保存済みの履歴には残ります。
-
-X の保存済み RSS ファイルを履歴に追加して書き込む場合:
-
-```sh
-bundle exec ruby x_to_obsidian.rb --feed-file path/to/feed.xml
-```
-
-`--offline` と `--feed-file` は同時に指定できません。
-どちらも `--days N` を併用できます。
-
-CAR を再取得して過去分を履歴に補完する場合:
-
-```sh
-bundle exec ruby bsky_to_obsidian.rb --refresh-car
-```
-
-`--refresh-car` も既存の履歴にマージするため、CAR から消えた投稿は履歴から削除しません。
-`--offline` と `--refresh-car` は同時に指定できません。
-どちらも `--days N` を併用できます。
-
-抽出だけ実行する場合:
-
-```sh
-bundle exec ruby extract_car.rb
-```
-
-これは CAR の抽出結果だけを更新します。
-既存の `posts.jsonl` は変更しません。
-
-repo.car をダウンロードする場合:
-
-```sh
-bundle exec ruby download_car.rb
-```
+| オプション | 動作 |
+| --- | --- |
+| `--config PATH` | 設定ファイルを指定（既定は `config.yml`） |
+| `--days N` | 今日を含む直近 N 日分だけ反映 |
+| `--offline` | 取得せず、保存済みの履歴から反映 |
 
 ## Obsidian への書き込み
 
@@ -294,19 +257,22 @@ Bluesky の管理ブロックを削除する場合:
 bundle exec ruby delete_obsidian_daily_notes.rb
 ```
 
-## CAR ファイルのダウンロード
+## CAR ファイルの操作
 
-投稿を公開している場合は、スクリプトで CAR ファイルをダウンロードできます。保存先は `extract.car_path` です。
-
-`bluesky.handle` または `bluesky.did` を設定してから、
-
-```yaml
-bluesky:
-  handle: bsky.app
-```
-
-以下を実行します。
+初回の取り込みでは、必要に応じて CAR のダウンロードと抽出を自動で行います。
+個別に実行する場合は、次のコマンドを使います。
 
 ```sh
+# ダウンロードだけ（保存先は extract.car_path）
 bundle exec ruby download_car.rb
+
+# 抽出だけ
+bundle exec ruby extract_car.rb
+
+# 再取得して履歴にマージし、Daily note に反映
+bundle exec ruby bsky_to_obsidian.rb --refresh-car
 ```
+
+`extract_car.rb` は抽出結果だけを更新し、既存の `posts.jsonl` は変更しません。
+`--refresh-car` は過去分を履歴に補完し、CAR から消えた投稿も保持します。
+`--days N` を併用できますが、`--offline` とは同時に指定できません。
