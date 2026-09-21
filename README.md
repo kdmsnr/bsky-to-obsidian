@@ -216,13 +216,6 @@ CAR のダウンロードと抽出は、履歴ができた後の通常実行で�
 API の取得範囲より古い投稿の変更や削除は追跡しません。
 Bluesky 上で削除された投稿も保存済みの履歴には残ります。
 
-ネットワークに接続せず、保存済みの履歴から書き込み直す場合:
-
-```sh
-bundle exec ruby bsky_to_obsidian.rb --offline
-bundle exec ruby x_to_obsidian.rb --offline
-```
-
 X の保存済み RSS ファイルを履歴に追加して書き込む場合:
 
 ```sh
@@ -257,23 +250,27 @@ repo.car をダウンロードする場合:
 bundle exec ruby download_car.rb
 ```
 
-Obsidian への書き込みだけ実行する場合:
+## Obsidian への書き込み
+
+通常の取り込みコマンドは、投稿の取得から Daily note への書き込みまで実行します。
+取得せずに保存済みのデータから書き込み直す場合は、次のコマンドを使います。
+
+Bluesky:
 
 ```sh
 bundle exec ruby upsert_obsidian_daily_notes.rb
 ```
 
-`upsert_obsidian_daily_notes.rb` も、設定ファイルの `obsidian.posts.days` と `--days N` に対応しています。
+`bundle exec ruby bsky_to_obsidian.rb --offline` でも同じ書き込み処理を実行できます。
 
-書き込んだところを削除する場合:
+X:
 
 ```sh
-bundle exec ruby delete_obsidian_daily_notes.rb
+bundle exec ruby x_to_obsidian.rb --offline
 ```
 
-この削除スクリプトは Bluesky の管理ブロックを対象とします。
-
-## Obsidian への書き込み
+どちらも `--config PATH` と `--days N` を指定できます。
+反映日数を省略した場合は、設定ファイルの `obsidian.posts.days` に従います。
 
 Daily note は保存済みの投稿履歴から日付ごとに生成し、管理ブロック内を時刻順に並べます。
 本文の改行とリンク先を残し、元投稿へのリンクを付けます。
@@ -290,6 +287,12 @@ Bluesky は Daily note 内の次の管理ブロックを更新します。
 
 ブロックがなければ末尾に追加します。対象日の Daily note がなければ作成します。
 X は同じルールで `<!-- x-to-obsidian:start -->` から `<!-- x-to-obsidian:end -->` までを更新します。
+
+Bluesky の管理ブロックを削除する場合:
+
+```sh
+bundle exec ruby delete_obsidian_daily_notes.rb
+```
 
 ## CAR ファイルのダウンロード
 
